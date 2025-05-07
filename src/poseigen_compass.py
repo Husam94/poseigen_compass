@@ -1,17 +1,12 @@
-
-
 import numpy as np
 import pandas as pd
 import os
 import copy
 import glob, shutil
-
 #-----------------------------
-
 import poseigen_seaside.basics as se
 import poseigen_seaside.metrics as mex
-
-print('this is poseigen_compass')
+#-----------------------------
 
 
 def VarTra_exp(inp, inverse = False): 
