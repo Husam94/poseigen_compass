@@ -1,0 +1,10 @@
+LICENSE.txt
+README.md
+pyproject.toml
+src/__init__.py
+src/poseigen_compass.py
+src/poseigen_compass.egg-info/PKG-INFO
+src/poseigen_compass.egg-info/SOURCES.txt
+src/poseigen_compass.egg-info/dependency_links.txt
+src/poseigen_compass.egg-info/requires.txt
+src/poseigen_compass.egg-info/top_level.txt

@@ -9,6 +9,9 @@ import glob, shutil
 #-----------------------------
 
 import poseigen_seaside.basics as se
+import poseigen_seaside.metrics as mex
+
+print('this is poseigen_compass')
 
 
 def VarTra_exp(inp, inverse = False): 
@@ -76,7 +79,7 @@ def RandomCanGen(VarDict, num_can, num_gen = 10, configspace = False):
 
 ################################################################################
 
-def StandardCanScorer(algo, algo_args, data, Splits = None, metrics_mode= [se.AError, {}], add_metrics_modes = None, 
+def StandardCanScorer(algo, algo_args, data, Splits = None, metrics_mode= [mex.AError, {}], add_metrics_modes = None, 
                      pathname = None, returnmodel = False): 
 
     #add_metrics_mode is optional but if specified is a list of functions and a list of their respective arguments. 
@@ -110,7 +113,7 @@ def StandardCanScorer(algo, algo_args, data, Splits = None, metrics_mode= [se.AE
 
 def ModelEvalHelper(c, 
                     algo, CanDict, data, Splits = None, repeats = 1, 
-                    CS_mode = [StandardCanScorer, {'metrics_mode': [se.AError, {'expo': 2}]}], CSDict = {}, 
+                    CS_mode = [StandardCanScorer, {'metrics_mode': [mex.AError, {'expo': 2}]}], CSDict = {}, 
                     lmd = 1, lsp = 1, 
                     statusprints = True, pathname = None, savemodels = False, pn_Can = None):
 
@@ -141,7 +144,7 @@ def ModelEvalHelper(c,
     return score
 
 def CanEvaluator(algo, CanDict, data, Splits = None, repeats = 1, parallel = False, 
-                 CS_mode = [StandardCanScorer, {'metrics_mode': [se.AError, {'expo': 2}]}], CS_vars = None, 
+                 CS_mode = [StandardCanScorer, {'metrics_mode': [mex.AError, {'expo': 2}]}], CS_vars = None, 
                  pickup = False, statusprints = True, pathname = None, savemodels = False,
                  ext = None): 
     
@@ -220,7 +223,7 @@ def CanEvaluator(algo, CanDict, data, Splits = None, repeats = 1, parallel = Fal
 
 def RandomOpt(algo, VarDict, data, Splits = None, 
               budget = 20, repeats = 1, 
-              CS_mode = [StandardCanScorer, {'metrics_mode': [se.AError, {'expo': 2}]}], CS_vars = None,
+              CS_mode = [StandardCanScorer, {'metrics_mode': [mex.AError, {'expo': 2}]}], CS_vars = None,
               RMG_args = {}, configspace = False, 
 
               smallest = None, #PLACEHOLDER, DOESNT DO SHIT
