@@ -3,6 +3,7 @@ import pandas as pd
 import os
 import copy
 import glob, shutil
+from collections import Counter
 #-----------------------------
 import poseigen_seaside.basics as se
 import poseigen_seaside.metrics as mex
@@ -106,6 +107,118 @@ def StandardCanScorer(algo, algo_args, data, Splits = None, metrics_mode= [mex.A
 ################################################################################
 
 
+# def ModelEvalHelper(c, 
+#                     algo, CanDict, data, Splits = None, repeats = 1, 
+#                     CS_mode = [StandardCanScorer, {'metrics_mode': [mex.AError, {'expo': 2}]}], CSDict = {}, 
+#                     lmd = 1, lsp = 1, 
+#                     statusprints = True, pathname = None, savemodels = False, pn_Can = None):
+
+#     #Sept 25 modification: Data splitting is handled by the scorer. 
+        
+#     i, s, r = c
+
+#     Split = Splits[s] if Splits is not None else None
+
+#     if statusprints: 
+#         if r == 0 and s == 0:
+#             itos = CanDict[i].items() if statusprints == True else [(k, CanDict[i][k]) for k in statusprints]
+#             print(f' Model {i+1} of {lmd}: {itos}')
+#         print(f' cross val {s+1} of {lsp}, Repeat {r+1} of {repeats}')
+
+#     savepath = None
+#     if pathname is not None and savemodels == True:
+#         savepath = pathname + str(i) + '_' + str(s) + '_' + str(r)
+
+#     meh_args = {}
+#     if data is not None: meh_args['data'] = data
+#     if Split is not None: meh_args['Split'] = Split
+#     score = CS_mode[0](algo, CanDict[i], **meh_args,
+#                     pathname = savepath, **CSDict[i])
+
+#     if statusprints: print(f" Model {i+1}, cross val {s+1}, Repeat {r+1}: {score}")
+
+#     return score
+
+# def CanEvaluator(algo, CanDict, data, Splits = None, repeats = 1, parallel = False, 
+#                  CS_mode = [StandardCanScorer, {'metrics_mode': [mex.AError, {'expo': 2}]}], CS_vars = None, 
+#                  pickup = False, statusprints = True, pathname = None, savemodels = False,
+#                  ext = None): 
+    
+#     #June 29, ADDED PARALLELIZATION! 
+    
+#     #For YAHPO gym, adding a data is None option. If Data is None, it is assumed to be a surrogate operation. 
+
+
+#     if ext is True: ext = 'CanEval'
+#     newpathname = se.NewFolder(pathname, ext = ext)
+    
+#     if pathname is None: pickup = False
+#     else: pn_met = newpathname + 'Mets' + '.p'
+        
+#     CDK = CanDict.keys()  
+#     lmd = len(CDK)
+    
+#     CSDict = {} 
+#     for i in CDK: 
+#         CSDict[i] = CS_mode[1]
+#         if CS_vars is not None: 
+#             x = {v: CanDict[i][v] for v in CS_vars}
+#             CSDict[i].update(x)
+#             for v in CS_vars: 
+#                 del CanDict[i][v]
+    
+#     #Each split has to be in the format: [array, array] 
+#     lsp = 1
+#     if Splits is not None: 
+#         if isinstance(Splits[0], list) is False: Splits = [Splits]
+#         lsp = len(Splits)
+#     elif isinstance(data, dict): lsp = len(data)
+
+#     modelcombos = []
+#     newmetrics = {} 
+#     for i in CDK:
+#         newmetrics[i] = {}
+#         for s in range(lsp):
+#             newmetrics[i][s] = {}
+#             for r in range(repeats):
+#                 newmetrics[i][s][r] = None
+#                 modelcombos.append([i, s, r])
+
+#     if pickup and os.path.isfile(pn_met): 
+#         oldmetrics = se.PickleLoad(pn_met)
+#         for i in oldmetrics.keys():
+#             if i < lmd: 
+#                 for s in oldmetrics[i].keys():
+#                     for r in oldmetrics[i][s].keys(): 
+#                         newmetrics[i][s][r] = oldmetrics[i][s][r]
+    
+#     print(newmetrics)
+    
+#     MEH_args = {'algo': algo, 'CanDict': CanDict, 'data': data, 'Splits': Splits, 'repeats': repeats, 
+#                 'CS_mode': CS_mode, 'CSDict': CSDict, 'lmd': lmd, 'lsp': lsp, 
+#                 'statusprints': statusprints, 'pathname': newpathname, 'savemodels': savemodels} 
+
+#     #BELOW NEEDS WORK SINCE CHANGING METRICS TO A DICTIONARY 
+#     #if parallel > 1: #Needs to be an int > 1
+#         #pool = multiprocessing.Pool(parallel)
+#         #metrics = pool.map(*pack_function_for_map(ModelEvalHelper, modelcombos[len(metrics):], **MEH_args))
+#         #if pathname is not None: pickle.dump(metrics, open(pathname + pn_CEMe + '.p', 'wb'))
+#     #else #benefit of non-parallel is the pickup. Can we do pickup with 
+    
+#     for c in modelcombos:
+#         i, s, r = c
+#         if newmetrics[i][s][r] is None: 
+#             newmetrics[i][s][r] = ModelEvalHelper(c, **MEH_args)
+#             if pathname is not None: se.PickleDump(newmetrics, pn_met)            
+    
+#     return newmetrics
+
+
+
+
+import multiprocessing
+from functools import partial
+
 def ModelEvalHelper(c, 
                     algo, CanDict, data, Splits = None, repeats = 1, 
                     CS_mode = [StandardCanScorer, {'metrics_mode': [mex.AError, {'expo': 2}]}], CSDict = {}, 
@@ -136,7 +249,7 @@ def ModelEvalHelper(c,
 
     if statusprints: print(f" Model {i+1}, cross val {s+1}, Repeat {r+1}: {score}")
 
-    return score
+    return (c, score)  # Return tuple of (combo, score) for parallel mapping
 
 def CanEvaluator(algo, CanDict, data, Splits = None, repeats = 1, parallel = False, 
                  CS_mode = [StandardCanScorer, {'metrics_mode': [mex.AError, {'expo': 2}]}], CS_vars = None, 
@@ -197,21 +310,35 @@ def CanEvaluator(algo, CanDict, data, Splits = None, repeats = 1, parallel = Fal
                 'CS_mode': CS_mode, 'CSDict': CSDict, 'lmd': lmd, 'lsp': lsp, 
                 'statusprints': statusprints, 'pathname': newpathname, 'savemodels': savemodels} 
 
-    #BELOW NEEDS WORK SINCE CHANGING METRICS TO A DICTIONARY 
-    #if parallel > 1: #Needs to be an int > 1
-        #pool = multiprocessing.Pool(parallel)
-        #metrics = pool.map(*pack_function_for_map(ModelEvalHelper, modelcombos[len(metrics):], **MEH_args))
-        #if pathname is not None: pickle.dump(metrics, open(pathname + pn_CEMe + '.p', 'wb'))
-    #else #benefit of non-parallel is the pickup. Can we do pickup with 
+    # Filter out already computed combinations
+    combos_to_run = [c for c in modelcombos if newmetrics[c[0]][c[1]][c[2]] is None]
     
-    for c in modelcombos:
-        i, s, r = c
-        if newmetrics[i][s][r] is None: 
-            newmetrics[i][s][r] = ModelEvalHelper(c, **MEH_args)
-            if pathname is not None: se.PickleDump(newmetrics, pn_met)            
+    if parallel and len(combos_to_run) > 0:
+        # Parallel execution with incremental saving
+        n_workers = parallel if isinstance(parallel, int) else multiprocessing.cpu_count()
+        
+        # Use partial to create picklable function
+        run_eval = partial(ModelEvalHelper, **MEH_args)
+        
+        ctx = multiprocessing.get_context('spawn')
+        with ctx.Pool(processes=n_workers) as pool:
+            # Use imap_unordered for incremental results
+            for result in pool.imap_unordered(run_eval, combos_to_run):
+                (i, s, r), score = result
+                newmetrics[i][s][r] = score
+                
+                # Save after each completed job
+                if pathname is not None:
+                    se.PickleDump(newmetrics, pn_met)
+    else:
+        # Sequential execution (original behavior)
+        for c in combos_to_run:
+            i, s, r = c
+            newmetrics[i][s][r] = ModelEvalHelper(c, **MEH_args)[1]  # Extract score from tuple
+            if pathname is not None:
+                se.PickleDump(newmetrics, pn_met)            
     
     return newmetrics
-
 
 
 
@@ -222,6 +349,8 @@ def RandomOpt(algo, VarDict, data, Splits = None,
               RMG_args = {}, configspace = False, 
 
               smallest = None, #PLACEHOLDER, DOESNT DO SHIT
+
+              parallel = False,
               
               pickup = False, statusprints = True, pathname = None, savemodels = False, ext = None): 
         
@@ -257,6 +386,12 @@ def RandomOpt(algo, VarDict, data, Splits = None,
         if difo < 0: 
             for i in list(CanDict[0].keys()):
                 if i >= budget: del CanDict[0][i]
+
+            # Keep metrics aligned with retained candidates
+            if 0 in metrics and isinstance(metrics[0], dict):
+                for i in list(metrics[0].keys()):
+                    if i >= budget:
+                        del metrics[0][i]
 
         if difo > 0: # DOES NOT GUARANTEE UNIQUE ONES!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -302,7 +437,8 @@ def RandomOpt(algo, VarDict, data, Splits = None,
                                Splits = Splits, repeats = repeats, 
                                CS_vars = CS_vars, CS_mode = CS_mode,
                                pickup = pickup, statusprints = sps, 
-                               pathname = pn_can, savemodels = savemodels, ext = ext)
+                               pathname = pn_can, savemodels = savemodels, ext = ext, 
+                               parallel = parallel)
 
     OptOut = [CanDict, metrics]
     if newpathname is not None: se.PickleDump(OptOut,pn_OO)
@@ -439,6 +575,8 @@ def PredScorer(pred,
                split = None, metrics_mode = None,
                pred_modif_mode = None):
     
+    if isinstance(pred, str): pred = se.PickleLoad(pred)
+    
     if pred_modif_mode is not None: pred = pred_modif_mode[0](pred, **pred_modif_mode[1])
     
     pred_sp, out_sp = [[xo[s] for s in split] for xo in [pred, out]]
@@ -482,8 +620,10 @@ def EnsembleIdxs(pn, std_cutoff = 2, ddof = 1):
     mets2 = [y for x,y in mets.items()]
     return  remove_outliers(mets2, std_cutoff=std_cutoff, ddof = ddof, return_idx = True)
 
-def EnsembleScorer(preds,
-                   out, out_std = None, out_weights = None, out_bind = None,                  
+def EnsembleScorer(preds, 
+                   out, out_std = None, out_weights = None, out_bind = None,     
+
+                   stop_mets = None,             
 
                    split = None, metrics_mode = None,
                    score_on = 1,
@@ -508,11 +648,19 @@ def EnsembleScorer(preds,
                'out_weights': out_weights, 'out_bind': out_bind,
                'split': split, 'metrics_mode': metrics_mode, 
                'pred_modif_mode': pred_modif_mode}
-
-    mets_all = np.array([PredScorer(pred, **ps_args) for pred in preds])
-
-    stop_mets = mets_all[:, score_on] if len(mets_all.shape) > 1 else mets_all
     
+
+    #---------------------------------------------------------
+
+    if stop_mets is not None: 
+        if isinstance(stop_mets, str): 
+            stop_mets = se.PickleLoad(stop_mets)[0]
+            stop_mets = [stop_mets[k] for k in np.sort(list(stop_mets.keys()))]
+    else: 
+        mets_all = np.array([PredScorer(pred, **ps_args) for pred in preds])
+        stop_mets = mets_all[:, score_on] if len(mets_all.shape) > 1 else mets_all
+    
+
     if std_cutoff is not None: 
         idx_keep = remove_outliers(stop_mets, std_cutoff=std_cutoff, 
                                 ddof = ddof, return_idx = True)
@@ -535,6 +683,7 @@ def EnsembleScorer(preds,
             se.PickleDump(g, pathname + 'ensemble_' + gn)
 
     return (preds_ensemb_scores, preds_ensemb, idx_keep) if return_extra else preds_ensemb_scores
+
 
 
 def Bootstrapper(inp, mode = [], iters = 100, 
@@ -592,6 +741,8 @@ def BootstrapConfidenceInterval(inp, alpha = 0.95,
     elif onesided == 'greater':
         p_lower = (1 - alpha) * 100
         p_higher = 100
+    
+    #inp_sort = inp_sort
 
     return np.array([np.percentile(np.sort(inp), p, axis = axis) for p in [p_lower, p_higher]])
 
@@ -602,3 +753,77 @@ def BootstrapStandardError(inp, ddof = 0, axis = None):
 
 
 
+def BootstrapWeights(folder, repeats = 10, bootstrap = 50, top = 3): 
+    #folder is the trident can repeater folder
+
+    mets = se.PickleLoad(folder + 'Mets')[0]
+    mets_flat = [mets[x] for x in range(repeats)]
+
+    boot_idxs = [np.random.choice(np.arange(repeats), repeats, replace = True) 
+                 for _ in range(bootstrap)]
+    
+    top_idxs = [idxs[np.argsort([mets_flat[x] for x in idxs])[:top]] 
+                for idxs in boot_idxs]
+    
+    top_idxs_flat = np.array(top_idxs).reshape(-1)
+
+    counts = Counter(top_idxs_flat)           # raw frequency
+    total = len(top_idxs_flat)
+    weights = {i: counts.get(i, 0) / total for i in range(15)}
+
+    boot_weights = np.zeros(repeats)
+    for x in range(repeats): boot_weights[x] = weights[x]
+
+    return boot_weights
+
+
+
+
+
+#===================================
+
+def shuffle_train_val_arrays(data_split, *arrays, has_val=True, random_state=None):
+    """
+    Shuffle arrays for train and (optionally) validation sets only, using the same permutation for each array.
+    Arrays can have different shapes, as long as their first dimension matches the indices in data_split.
+
+    Args:
+        data_split: list of lists of indices [train, val, test, ...]
+        *arrays: arrays (np.ndarray or list) to shuffle identically (first dimension must match)
+        has_val: bool, if True, shuffle validation set as well
+        random_state: int or None, for reproducibility
+
+    Returns:
+        Tuple of shuffled arrays, in the same order as input. If only one array, returns that array.
+    """
+    rng = np.random.default_rng(random_state)
+    arrays_shuf = [np.array(arr).copy() for arr in arrays]
+
+    # Shuffle train
+    train_idx = data_split[0]
+    perm_train = rng.permutation(len(train_idx))
+    for i, arr in enumerate(arrays_shuf):
+        # Use advanced indexing to shuffle only along the first axis
+        arr_train = arr[train_idx]
+        arr_train_shuf = arr_train[perm_train]
+        arr[train_idx] = arr_train_shuf
+
+    # Shuffle val if present and requested
+    if has_val and len(data_split) > 1:
+        val_idx = data_split[1]
+        perm_val = rng.permutation(len(val_idx))
+        for i, arr in enumerate(arrays_shuf):
+            arr_val = arr[val_idx]
+            arr_val_shuf = arr_val[perm_val]
+            arr[val_idx] = arr_val_shuf
+
+    # Convert back to list if original was list
+    for i, arr in enumerate(arrays):
+        if isinstance(arr, list):
+            arrays_shuf[i] = list(arrays_shuf[i])
+
+    ret = tuple(arrays_shuf)
+    if len(arrays) == 1:
+        ret = arrays_shuf[0]
+
+    return ret
