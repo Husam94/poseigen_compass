@@ -1,5 +1,4 @@
 import numpy as np
-import pandas as pd
 import os
 import copy
 import glob, shutil
@@ -769,7 +768,7 @@ def BootstrapWeights(folder, repeats = 10, bootstrap = 50, top = 3):
 
     counts = Counter(top_idxs_flat)           # raw frequency
     total = len(top_idxs_flat)
-    weights = {i: counts.get(i, 0) / total for i in range(15)}
+    weights = {i: counts.get(i, 0) / total for i in range(repeats)}
 
     boot_weights = np.zeros(repeats)
     for x in range(repeats): boot_weights[x] = weights[x]
